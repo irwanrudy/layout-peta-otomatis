@@ -629,6 +629,56 @@ def buat_where_filter(field, kode):
     return "%s = '%s'" % (field, ke_teks(kode).replace("'", "''"))
 
 
+PASANGAN_ELEMEN = [("ELEMEN_JUDUL", "TEKS_JUDUL"),
+                   ("ELEMEN_ESTATE", "TEKS_ESTATE"),
+                   ("ELEMEN_SKALA", "TEKS_SKALA"),
+                   ("ELEMEN_TANGGAL", "TEKS_TANGGAL"),
+                   ("ELEMEN_SUMBER", "TEKS_SUMBER"),
+                   ("ELEMEN_PEMBUAT", "TEKS_PEMBUAT"),
+                   ("ELEMEN_CATATAN", "TEKS_CATATAN")]
+
+
+def peta_elemen_dari_config(cfg):
+    """
+    Ambil pasangan (element_name, pola_teks) dari modul/objek config.
+    Elemen yang namanya kosong/None dilewati.
+    """
+    hasil = []
+    for attr_elemen, attr_teks in PASANGAN_ELEMEN:
+        nama = getattr(cfg, attr_elemen, None)
+        if nama:
+            hasil.append((nama, getattr(cfg, attr_teks, "") or ""))
+    return hasil
+
+
+def cek_pyramid(path_ortho, path_ada=os.path.isfile):
+    """
+    Peringatan bila GeoTIFF/IMG tampaknya belum punya pyramids eksternal
+    (.ovr / .rrd). ECW/JP2/MrSID sudah multi-resolusi sehingga tidak dicek.
+    Catatan: pyramids internal di GeoTIFF tidak terdeteksi oleh cek ini.
+    """
+    ext = os.path.splitext(path_ortho)[1].lower()
+    if ext not in (".tif", ".tiff", ".img"):
+        return None
+    dasar = os.path.splitext(path_ortho)[0]
+    kandidat = [path_ortho + ".ovr", dasar + ".ovr", dasar + ".rrd"]
+    if any(path_ada(k) for k in kandidat):
+        return None
+    return ("pyramids (.ovr/.rrd) tidak ditemukan untuk %s; export bisa "
+            "sangat lambat -> jalankan Build Pyramids"
+            % os.path.basename(path_ortho))
+
+
+def pesan_error(err):
+    """Teks exception yang aman untuk unicode di Python 2 maupun 3."""
+    try:
+        teks = teks_type(err)
+    except UnicodeError:  # pragma: no cover - khusus Python 2
+        teks = str(err).decode("utf-8", "replace")
+    teks = teks.strip()
+    return teks or err.__class__.__name__
+
+
 # ===========================================================================
 # Hasil & ringkasan
 # ===========================================================================

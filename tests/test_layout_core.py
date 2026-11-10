@@ -203,6 +203,41 @@ class TesTeksDanNamaFile(unittest.TestCase):
         self.assertEqual(core.buat_where_filter(None, "SMSE"), "")
 
 
+class TesHelperLain(unittest.TestCase):
+
+    def test_peta_elemen_dari_config(self):
+        class Cfg(object):
+            ELEMEN_JUDUL = "TXT_JUDUL"
+            TEKS_JUDUL = "PETA"
+            ELEMEN_SKALA = "TXT_SKALA"
+            TEKS_SKALA = "{skala}"
+            ELEMEN_CATATAN = None
+            TEKS_CATATAN = "{catatan}"
+        self.assertEqual(core.peta_elemen_dari_config(Cfg),
+                         [("TXT_JUDUL", "PETA"), ("TXT_SKALA", "{skala}")])
+
+    def test_peta_elemen_config_asli(self):
+        import config
+        peta = dict(core.peta_elemen_dari_config(config))
+        self.assertEqual(len(peta), 7)
+        e = core.Estate("SMSE", "Sawit Mas Estate", "", "",
+                        datetime.date(2026, 8, 15))
+        teks = core.susun_teks(e, 7500, core.peta_elemen_dari_config(config))
+        self.assertEqual(teks[config.ELEMEN_SKALA], "1 : 7.500")
+
+    def test_cek_pyramid(self):
+        tif = os.path.join("d", "ortho.tif")
+        self.assertIsNotNone(core.cek_pyramid(tif, path_ada=lambda p: False))
+        self.assertIsNone(core.cek_pyramid(
+            tif, path_ada=lambda p: p == tif + ".ovr"))
+        self.assertIsNone(core.cek_pyramid(os.path.join("d", "o.ecw"),
+                                           path_ada=lambda p: False))
+
+    def test_pesan_error(self):
+        self.assertEqual(core.pesan_error(ValueError("rusak ")), "rusak")
+        self.assertEqual(core.pesan_error(RuntimeError()), "RuntimeError")
+
+
 class TesBacaConfig(unittest.TestCase):
 
     def setUp(self):
