@@ -328,5 +328,93 @@ class TesProsesEstateMock(unittest.TestCase):
         self.assertIn("tidak ditemukan", info["kesalahan"][0])
 
 
+
+@unittest.skipIf(ARCPY_ASLI, "arcpy asli tersedia; tes mock dilewati")
+class TesCLIMock(unittest.TestCase):
+    """run_layout.main() end-to-end dengan arcpy tiruan."""
+
+    def setUp(self):
+        FAKE.reset()
+        self._arcpy_lama = sys.modules.get("arcpy")
+        sys.modules["arcpy"] = _buat_arcpy_tiruan()
+        sys.modules.pop("layout_arcmap", None)
+        import run_layout
+        self.rl = run_layout
+        self.tmp = tempfile.mkdtemp()
+        self._cfg_lama = {}
+        tpl = {}
+        for o in ("Landscape", "Portrait"):
+            tpl[o] = os.path.join(self.tmp, "Template_%s.mxd" % o)
+            open(tpl[o], "w").close()
+        self._set_cfg(TEMPLATE_LANDSCAPE=tpl["Landscape"],
+                      TEMPLATE_PORTRAIT=tpl["Portrait"],
+                      FIELD_FILTER_ESTATE=None)
+
+        baris = ["kode_estate,nama_estate,path_ortho,path_gdb,"
+                 "tanggal_akuisisi,catatan"]
+        for kode in ("AAAE", "BBBE", "CCCE"):
+            ortho = os.path.join(self.tmp, "%s.ecw" % kode)
+            gdb = os.path.join(self.tmp, "%s.gdb" % kode)
+            os.mkdir(gdb)
+            if kode != "BBBE":  # BBBE: ortho tidak ada -> validasi gagal
+                open(ortho, "w").close()
+            for fc in ("Batas_Estate", "Batas_Divisi", "Batas_Blok"):
+                FAKE.fc_ada.add(os.path.normpath(os.path.join(gdb, fc)))
+            baris.append("%s,Estate %s,%s,%s,2026-08-15," % (kode, kode,
+                                                             ortho, gdb))
+        self.config = os.path.join(self.tmp, "config.csv")
+        with open(self.config, "w") as f:
+            f.write("\n".join(baris) + "\n")
+        FAKE.geom = [FakeExtent(0, 0, 4000, 2000)]
+        self.out = os.path.join(self.tmp, "out")
+
+    def _set_cfg(self, **kw):
+        for k, v in kw.items():
+            self._cfg_lama.setdefault(k, getattr(self.rl.cfg, k))
+            setattr(self.rl.cfg, k, v)
+
+    def tearDown(self):
+        for k, v in self._cfg_lama.items():
+            setattr(self.rl.cfg, k, v)
+        logging.getLogger("layout_peta").handlers = []
+        sys.modules.pop("arcpy", None)
+        sys.modules.pop("layout_arcmap", None)
+        if self._arcpy_lama is not None:
+            sys.modules["arcpy"] = self._arcpy_lama
+        shutil.rmtree(self.tmp)
+
+    def jalankan(self, *arg):
+        return self.rl.main(["--config", self.config, "--output", self.out]
+                            + list(arg))
+
+    def test_dry_run(self):
+        self.assertEqual(self.jalankan("--dry-run"), 1)  # BBBE tidak valid
+        self.assertEqual(FAKE.diexport, [])
+        self.assertEqual(self.jalankan("--dry-run", "--estate", "aaae"), 0)
+
+    def test_satu_gagal_lainnya_tetap_jalan(self):
+        # CCCE gagal saat replaceDataSource, BBBE gagal validasi
+        FAKE.dataset_rusak = set(["CCCE.ecw"])
+        self.assertEqual(self.jalankan(), 1)
+        nama = [os.path.basename(p) for p, _ in FAKE.diexport]
+        self.assertEqual(nama, ["AAAE_Peta_Foto_Udara_20260815.pdf"])
+        log_dir = os.path.join(self.out, "log")
+        with open(os.path.join(log_dir, os.listdir(log_dir)[0]), "rb") as f:
+            isi = f.read().decode("utf-8")
+        self.assertIn("Total: 3 | Berhasil: 1 | Gagal: 2", isi)
+
+    def test_jpg_dan_estate_tunggal(self):
+        self.assertEqual(self.jalankan("--estate", "AAAE", "--jpg"), 0)
+        self.assertEqual(len(FAKE.diexport), 2)
+        self.assertTrue(os.path.isdir(os.path.join(self.out, "jpg")))
+
+    def test_template_rusak_batalkan(self):
+        self._set_cfg(TEMPLATE_PORTRAIT=os.path.join(self.tmp, "x.mxd"))
+        self.assertEqual(self.jalankan(), 3)
+        self.assertEqual(FAKE.diexport, [])
+
+    def test_config_salah(self):
+        self.assertEqual(self.jalankan("--estate", "ZZZZ"), 2)
+
 if __name__ == "__main__":
     unittest.main()
