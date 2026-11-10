@@ -1,0 +1,3 @@
+kode_estate,nama_estate,path_ortho,path_gdb,tanggal_akuisisi,catatan,fc_estate,fc_divisi,fc_blok
+SMSE,Sawit Mas Estate,D:\UAV\SMSE\Ortho_SMSE.tif,D:\Aresta\SMSE.gdb,15/08/2026,Akuisisi semester 2,,,
+ABCE,Alpha Bumi Cemerlang Estate,D:\UAV\ABCE\Ortho_ABCE.ecw,D:\Aresta\ABCE.gdb,2026-09-01,,Batas_Kebun,,Blok_2026

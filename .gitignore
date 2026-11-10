@@ -1,0 +1,6 @@
+*.pyc
+__pycache__/
+output/
+config.xlsx
+config.csv
+~$*.xlsx
